@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<style>
+* {
+  box-sizing: border-box;
+}
+
+/* Create two equal columns that floats next to each other */
+.column {
+  float: left;
+  width: 30%;
+  padding: 2px;
+}
+
+.column_title {
+  float: left;
+  width: 33%;
+}
+
+.row:after {
+  content: "";
+  display: table;
+  clear: both;
+}
+</style>
+<p></p>
+<div class="row">
+  <div class="column">
+    Parameters for the viewing position:
+    <div>radius 0.05<input id="radiusSlider" type="range" min="0.05" max="10" step="0.1" value="3" />10</div>
+    <div>theta -90<input id="thetaSlider" type="range" min="-90" max="90" step="5" value="0" />90</div>
+    <div>phi -90<input id="phiSlider" type="range" min="-90" max="90" step="5" value="0" />90</div>
+    <p></p>
+    <div><button id="reset">Reset Viewing Position</button></div>
+  </div>
+  <div class="column">
+    Parameters for perspective projection:
+    <div>persNear 0.1<input id="persNearSlider" type="range" min="0.1" max="3" step="0.1" value="0.3" />3</div>
+    <div>persFar 3<input id="persFarSlider" type="range" min="3" max="15" step="1.0" value="12" />15</div>
+    <div>fovy 10<input id="fovySlider" type="range" min="10" max="120" step="5" value="45" />120</div>
+    <div>aspect 0.1<input id="aspectSlider" type="range" min="0.1" max="2" step="0.1" value="0.5" />2</div>
+  </div>
+  <div class="column">
+    Parameters for scaling and translation:
+    <div>scaling 0.2<input id="scalingSlider" type="range" min="0.2" max="1.3" step="0.1" value="0.5" />1.3</div>
+    <div>translateX -1.5<input id="translateXSlider" type="range" min="-1.5" max="1.5" step="0.1" value="0.0" />1.5</div>
+    <div>translateY -1.5<input id="translateYSlider" type="range" min="-1.5" max="1.5" step="0.1" value="0.5" />1.5</div>
+    <div>translateZ -1.5<input id="translateZSlider" type="range" min="-1.5" max="1.5" step="0.1" value="0.0" />1.5</div>
+  </div>
+</div>
+<p></p>
+<div class="row">
+  <div class="column">
+    Parameters for orthogonal projection:
+    <div>orthoNear 0.1<input id="orthoNearSlider" type="range" min="0.1" max="2.8" step="0.1" value="0.3" />2.8</div>
+    <div>orthoFar 3<input id="orthoFarSlider" type="range" min="3" max="15" step="1.0" value="10" />15</div>
+  </div>
+  <div class="column">
+    Select the shading mode:
+    <select id="ShadingButton" value="g">
+      <option value="g">Gouraud Shading</option>
+      <option value="p">Phong Shading</option>
+    </select>
+  </div>
+</div>
+<div class="row">
+  <div class="column_title">
+    <h1>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Perspective Projection</h1>
+  </div>
+  <div class="column_title">
+    <h1>Orthogonal Projection</h1>
+  </div>
+</div>
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+    precision mediump float;
+    attribute  vec4 vPosition;
+    varying vec4 fColor;
+    attribute vec4 vNormal;
+    attribute  vec2 vTexCoord;
+    uniform vec4 ambientProduct, diffuseProduct, specularProduct;
+    uniform vec4 lightPosition;
+    uniform float shininess;
+    uniform mat4 modelViewMatrix;
+    uniform mat4 perspectiveMatrix;
+    uniform mat4 scalingMatrix;
+    uniform mat4 translationMatrix;
+    uniform mat4 orthogonalMatrix;
+    varying vec4 N, L, E;
+    uniform bool changeShading;
+    varying vec2 fTexCoord;
+
+    void main()
+    {
+    vec4 pos = -vPosition;
+    if(changeShading){
+    vec4 light = lightPosition;
+    L = normalize( light - pos );
+    E = normalize( -pos );
+    N = normalize(vNormal);
+    vec4 H = normalize( L + E );
+
+    vec4 ambient = ambientProduct;
+
+    float Kd = max( dot(L, N), 0.0 );
+    vec4  diffuse = Kd*diffuseProduct;
+    float Ks = pow( max(dot(N, H), 0.0), shininess );
+    vec4  specular = Ks * specularProduct;
+
+    if( dot(L, N) < 0.0 ) {
+    specular = vec4(0.0, 0.0, 0.0, 1.0);}
+
+    fColor = ambient + diffuse +specular;
+    fColor.a = 1.0;
+    fTexCoord = vTexCoord;
+    gl_Position = translationMatrix*scalingMatrix*perspectiveMatrix*orthogonalMatrix*modelViewMatrix*vPosition;
+    }
+    else{
+    vec4 light = lightPosition;
+    L = normalize(light - pos);
+    E = (-pos);
+    N = normalize(vNormal);
+    fTexCoord = vTexCoord;
+    gl_Position = translationMatrix*scalingMatrix*perspectiveMatrix*orthogonalMatrix*modelViewMatrix*vPosition;
+    }
+    }
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+    precision mediump float;
+    uniform vec4 ambientProduct;
+    uniform vec4 diffuseProduct;
+    uniform vec4 specularProduct;
+    uniform float shininess;
+    varying vec4 N, L, E;
+    varying vec4 fColor;
+    uniform bool changeShading;
+    varying  vec2 fTexCoord;
+    uniform sampler2D texture;
+
+    void
+    main()
+    {
+    if(changeShading){gl_FragColor = fColor*texture2D( texture, fTexCoord );}
+    else{
+    vec4 fColor;
+    vec4 H = normalize(L + E);
+    vec4 ambient = ambientProduct;
+
+    float Kd = max(dot(L, N), 0.0);
+    vec4  diffuse = Kd * diffuseProduct;
+
+    float Ks = pow(max(dot(N, H), 0.0), shininess);
+    vec4  specular = Ks * specularProduct;
+
+    if (dot(L, N) < 0.0) {
+    specular = vec4(0.0, 0.0, 0.0, 1.0);}
+
+    fColor = ambient + diffuse + specular;
+    fColor.a = 1.0;
+    gl_FragColor = fColor*texture2D( texture, fTexCoord );}
+    }
+</script>
+<script type="text/javascript" src="Common/webgl-utils.js"></script>
+<script type="text/javascript" src="Common/initShaders.js"></script>
+<script type="text/javascript" src="Common/MV.js"></script>
+<script type="text/javascript" src="homework1.js"></script>
+<body>
+    <canvas id="gl-canvas" width="1024" height="1024">
+        Oops ... your browser doesn't support the HTML5 canvas element
+    </canvas>
+</body>
+</html>
